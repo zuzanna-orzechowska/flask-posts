@@ -33,5 +33,9 @@ def create_app(test_config=None): #application factory function
     app.register_blueprint(blog.bp)
     app.add_url_rule('/', endpoint='index')
 
+    from . import admin
+    app.register_blueprint(admin.bp)
+
+
     return app
 

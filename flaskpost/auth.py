@@ -25,9 +25,10 @@ def register():
 
         if error is None:
             try:
+                is_admin = 1 if db.execute('SELECT COUNT(*) FROM user').fetchone()[0] == 0 else 0
                 db.execute(
-                    "INSERT INTO user (username, password) VALUES (?, ?)",
-                    (username, generate_password_hash(password)),
+                    "INSERT INTO user (username, password, is_admin) VALUES (?, ?, ?)",
+                    (username, generate_password_hash(password),is_admin),
                 )
                 db.commit()
             except db.IntegrityError:
@@ -59,6 +60,7 @@ def login():
         if error is None:
             session.clear()
             session['user_id'] = user['id']
+            session['is_admin'] = bool(user['is_admin'])
             return redirect(url_for('index'))
 
         flash(error)
@@ -91,4 +93,13 @@ def login_required(view):
 
         return view(**kwargs)
 
+    return wrapped_view
+
+def admin_required(view):
+    @functools.wraps(view)
+    def wrapped_view(**kwargs):
+        if g.user is None or not g.user['is_admin']:
+            flash("Administrator access required.")
+            return redirect(url_for('index'))
+        return view(**kwargs)
     return wrapped_view
