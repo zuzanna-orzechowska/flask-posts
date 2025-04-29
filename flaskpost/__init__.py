@@ -29,5 +29,9 @@ def create_app(test_config=None): #application factory function
     from . import db
     db.init_app(app)
 
+    #blueprint for authentucation
+    from . import auth
+    app.register_blueprint(auth.bp)
+
     return app
 
