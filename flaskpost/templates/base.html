@@ -7,7 +7,7 @@
     {% if g.user %}
       <li><span>{{ g.user['username'] }}</span></li>
       {% if g.user['is_admin'] %}
-        <li><a href="{{ url_for('admin.index') }}">Panel administratora</a></li>
+        <li><a href="{{ url_for('admin.index') }}">Admin Panel</a></li>
       {% endif %}
       <li><a href="{{ url_for('auth.logout') }}">Log Out</a></li>
     {% else %}
