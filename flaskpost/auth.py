@@ -1,4 +1,5 @@
 import functools
+import uuid
 
 from flask import (
     Blueprint, flash, g, redirect, render_template, request, session, url_for
@@ -9,77 +10,91 @@ from flaskpost.db import get_db
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 
-#function for register
 @bp.route('/register', methods=('GET', 'POST'))
 def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        db = get_db()
+        r = get_db()
         error = None
 
         if not username:
             error = 'Username is required.'
         elif not password:
             error = 'Password is required.'
+        elif r.exists(f"username_to_id:{username}"):
+            error = f"User {username} is already registered."
 
         if error is None:
-            try:
-                is_admin = 1 if db.execute('SELECT COUNT(*) FROM user').fetchone()[0] == 0 else 0
-                db.execute(
-                    "INSERT INTO user (username, password, is_admin) VALUES (?, ?, ?)",
-                    (username, generate_password_hash(password),is_admin),
-                )
-                db.commit()
-            except db.IntegrityError:
-                error = f"User {username} is already registered."
-            else:
-                return redirect(url_for("auth.login"))
+            user_id = r.incr("next_user_id")
+            is_admin = 1 if r.llen("user_ids") == 0 else 0
+
+            r.hset(f"user:{user_id}", mapping={
+                "username": username,
+                "password": generate_password_hash(password),
+                "is_admin": is_admin
+            })
+            r.rpush("user_ids", user_id)
+            r.set(f"username_to_id:{username}", user_id)
+
+            return redirect(url_for("auth.login"))
 
         flash(error)
 
     return render_template('auth/register.html')
 
-#function for login
 @bp.route('/login', methods=('GET', 'POST'))
 def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        db = get_db()
+        r = get_db()
         error = None
-        user = db.execute(
-            'SELECT * FROM user WHERE username = ?', (username,)
-        ).fetchone()
 
-        if user is None:
+        user_id = r.get(f"username_to_id:{username}")
+        if not user_id:
             error = 'Incorrect username.'
-        elif not check_password_hash(user['password'], password):
+        else:
+            user = r.hgetall(f"user:{user_id}")
+            stored_hash = None
+        if b'password' in user:
+            stored_hash = user[b'password'].decode()
+        elif 'password' in user:
+            stored_hash = user['password']
+
+        if not stored_hash or not check_password_hash(stored_hash, password):
             error = 'Incorrect password.'
+
 
         if error is None:
             session.clear()
-            session['user_id'] = user['id']
-            session['is_admin'] = bool(user['is_admin'])
+            session['user_id'] = user_id
+            session['is_admin'] = bool(int(user['is_admin']))
             return redirect(url_for('index'))
 
         flash(error)
 
     return render_template('auth/login.html')
 
-#function runs before the view function
 @bp.before_app_request
-def load_logged_in_user(): #checks if user's id is stored in the session
+def load_logged_in_user():
     user_id = session.get('user_id')
 
     if user_id is None:
         g.user = None
     else:
-        g.user = get_db().execute(
-            'SELECT * FROM user WHERE id = ?', (user_id,)
-        ).fetchone()
+        r = get_db()
+        user = r.hgetall(f"user:{user_id}")
+        if not user:
+            g.user = None
+        else:
+            g.user = {
+                "id": user_id,
+                "username": user['username'],
+                "password": user['password'],
+                "is_admin": int(user['is_admin'])
+            }
 
-#function for logout
 @bp.route('/logout')
 def logout():
     session.clear()
@@ -90,9 +105,7 @@ def login_required(view):
     def wrapped_view(**kwargs):
         if g.user is None:
             return redirect(url_for('auth.login'))
-
         return view(**kwargs)
-
     return wrapped_view
 
 def admin_required(view):
