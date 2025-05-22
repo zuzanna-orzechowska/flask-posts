@@ -7,7 +7,7 @@ class RedisDB:
     def __init__(self):
         redis_host = os.environ.get('REDIS_HOST', 'localhost')
         redis_port = int(os.environ.get('REDIS_PORT', 6379))
-        self.r = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
+        self.r = redis.Redis(host='redis-service', port=6379, decode_responses=True)
 
     def lrange(self, key, start, end):
         return self.r.lrange(key, start, end)

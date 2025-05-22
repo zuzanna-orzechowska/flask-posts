@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, g, redirect, url_for, flash
 from flaskpost.auth import admin_required
 from flaskpost.db import get_db
+from redisdb import r
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 

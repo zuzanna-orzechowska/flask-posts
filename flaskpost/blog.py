@@ -5,6 +5,7 @@ from datetime import datetime
 
 from flaskpost.auth import login_required
 from flaskpost.db import get_db
+from redisdb import r
 
 bp = Blueprint('blog', __name__)
 

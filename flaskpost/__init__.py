@@ -1,5 +1,12 @@
 import os
 from flask import Flask
+import redis
+
+redis_client = redis.Redis(
+    host='redis-service',
+    port=6379,
+    decode_responses=True
+)
 
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
