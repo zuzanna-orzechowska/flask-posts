@@ -1,31 +1,45 @@
 from flask import Blueprint, render_template, g, redirect, url_for, flash
 from flaskpost.auth import admin_required
 from flaskpost.db import get_db
+from redisdb import r
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 @bp.route('/')
 @admin_required
 def index():
-    db = get_db()
-    users = db.execute('SELECT id, username, is_admin FROM user').fetchall()
-    posts = db.execute('SELECT id, title FROM post').fetchall()
+    r = get_db()
+
+    user_ids = r.lrange("user_ids", 0, -1)
+    users = []
+    for uid in user_ids:
+        user_data = r.hgetall(f"user:{uid}")
+        user_data['id'] = uid
+        users.append(user_data)
+
+    post_ids = r.lrange("post_ids", 0, -1)
+    posts = []
+    for pid in post_ids:
+        post_data = r.hgetall(f"post:{pid}")
+        post_data['id'] = pid
+        posts.append(post_data)
+
     return render_template('admin/index.html', users=users, posts=posts)
 
-@bp.route('/delete-user/<int:user_id>')
+@bp.route('/delete-user/<user_id>')
 @admin_required
 def delete_user(user_id):
-    db = get_db()
-    db.execute('DELETE FROM user WHERE id = ?', (user_id,))
-    db.commit()
+    r = get_db()
+    r.delete(f"user:{user_id}")
+    r.lrem("user_ids", 0, user_id)
     flash('User deleted.')
     return redirect(url_for('admin.index'))
 
-@bp.route('/delete-post/<int:post_id>')
+@bp.route('/delete-post/<post_id>')
 @admin_required
 def delete_post(post_id):
-    db = get_db()
-    db.execute('DELETE FROM post WHERE id = ?', (post_id,))
-    db.commit()
+    r = get_db()
+    r.delete(f"post:{post_id}")
+    r.lrem("post_ids", 0, post_id)
     flash('Post deleted.')
     return redirect(url_for('admin.index'))
